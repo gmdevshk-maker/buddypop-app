@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { createClient } from "@supabase/supabase-js";
 import buddypopLogo from "./img/buddypop-logo.png";
+import qrcodeImg from "./img/qrcode.png";
 import { sfx, startBgm, startLobbyBgm, ensureAudio, toggleMute, isMuted, stopJingle } from "./sound";
 
 // ============================================================
@@ -372,6 +373,32 @@ function Lobby({ onCreate, onJoin }) {
       <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginTop: 24, textAlign: "center", maxWidth: 280 }}>
         같은 방 코드로 접속하면 모든 플레이어가<br/>실시간으로 같은 화면을 공유합니다
       </p>
+
+      <div style={{
+        marginTop: 16,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 8,
+      }}>
+        <div style={{
+          padding: 10,
+          borderRadius: 16,
+          background: "rgba(255,255,255,0.92)",
+          boxShadow: "0 8px 28px rgba(255,107,157,0.4), inset 0 0 0 1px rgba(255,255,255,0.15)",
+        }}>
+          <img
+            src={qrcodeImg}
+            alt="BUDDY POP 접속 QR 코드"
+            width={96}
+            height={96}
+            style={{ display: "block", width: 96, height: 96 }}
+          />
+        </div>
+        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center" }}>
+          스마트폰으로 스캔하여 플레이
+        </p>
+      </div>
     </div>
   );
 }
