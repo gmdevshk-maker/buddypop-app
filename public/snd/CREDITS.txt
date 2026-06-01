@@ -1,0 +1,31 @@
+BUDDY POP — 오디오 출처 및 라이선스
+====================================
+
+■ 효과음 (click / pop / invalid / combo / levelup / win / gameover)
+  출처 : Google Sound Library  (https://developers.google.com/assistant/tools/sound-library)
+  라이선스 : Creative Commons Attribution 4.0 International (CC-BY 4.0)
+  https://creativecommons.org/licenses/by/4.0/
+
+  - click.ogg    ← cartoon/wood_plank_flicks
+  - pop.ogg      ← cartoon/pop
+  - invalid.ogg  ← cartoon/cartoon_boing
+  - combo.ogg    ← cartoon/instrument_strum
+  - levelup.ogg  ← cartoon/clang_and_wobble
+  - win.ogg      ← alarms/medium_bell_ringing_near
+  - gameover.ogg ← cartoon/slide_whistle_to_drum
+
+■ 배경음악 — 게임 (bgm.mp3)
+  곡명 : "Pixelland"
+  작곡 : Kevin MacLeod (incompetech.com)
+  라이선스 : Creative Commons Attribution 3.0 (CC-BY 3.0)
+  https://creativecommons.org/licenses/by/3.0/
+
+■ 배경음악 — 첫 화면/로비 (lobby.mp3)
+  곡명 : "Itty Bitty 8 Bit"
+  작곡 : Kevin MacLeod (incompetech.com)
+  라이선스 : Creative Commons Attribution 3.0 (CC-BY 3.0)
+  https://creativecommons.org/licenses/by/3.0/
+
+표기 예시 (앱 크레딧/배포 시):
+  Music: "Pixelland" and "Itty Bitty 8 Bit" by Kevin MacLeod (incompetech.com), licensed under CC-BY 3.0.
+  Sound effects from the Google Sound Library, licensed under CC-BY 4.0.
