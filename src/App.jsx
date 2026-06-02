@@ -371,7 +371,7 @@ function Lobby({ onCreate, onJoin }) {
       {error && <p style={{ color: "#FF6B6B", fontSize: 13, marginTop: 12 }}>{error}</p>}
 
       <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginTop: 24, textAlign: "center", maxWidth: 280 }}>
-        같은 방 코드로 접속하면 모든 플레이어가<br/>실시간으로 같은 화면을 공유합니다
+        방 코드로 접속하여 게임에 참여하세요!
       </p>
 
       <div style={{
@@ -411,6 +411,10 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
   const [comboEffect, setComboEffect] = useState(null);
   const [shakeCell, setShakeCell] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatChannelRef = useRef(null);
+  const chatScrollRef = useRef(null);
   const lockRef = useRef(false);
   const effectId = useRef(0);
   const lastPopSeenRef = useRef(null);
@@ -527,6 +531,90 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
       supabase.removeChannel(channel);
     };
   }, [roomId, applyRemote]);
+
+  // 채팅 — Realtime Broadcast (DB 테이블/스키마 변경 없이 동작)
+  useEffect(() => {
+    const channel = supabase.channel(`chat:${roomId}`, {
+      config: { broadcast: { self: false } },
+    });
+    channel
+      .on("broadcast", { event: "msg" }, ({ payload }) => {
+        setMessages(prev => [...prev, payload]);
+      })
+      .subscribe();
+    chatChannelRef.current = channel;
+    return () => {
+      chatChannelRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]);
+
+  // 접속 감지 — Presence로 브라우저 종료(PC·모바일)·네트워크 끊김을 감지해
+  // 나간 플레이어를 DB players 배열에서 즉시 제거
+  useEffect(() => {
+    const presence = supabase.channel(`presence:${roomId}`, {
+      config: { presence: { key: playerId } },
+    });
+
+    // 동시 쓰기 방지를 위해 접속자 중 id가 가장 작은 1명(리더)만 DB를 정리한다
+    const isLeader = () => {
+      const ids = Object.keys(presence.presenceState());
+      return ids.length > 0 && ids.slice().sort()[0] === playerId;
+    };
+
+    // 현재 접속자에 없는 플레이어를 DB에서 제거
+    const removeOffline = async () => {
+      if (!isLeader()) return;
+      const online = new Set(Object.keys(presence.presenceState()));
+      const room = await getRoom(roomId).catch(() => null);
+      const players = room?.players;
+      if (!Array.isArray(players)) return;
+      const kept = players.filter(p => online.has(p.id));
+      if (kept.length !== players.length) {
+        const patched = await updateRoom(roomId, { players: kept }).catch(() => null);
+        if (patched) applyRemote(patched);
+      }
+    };
+
+    presence
+      // 누군가 떠나면(브라우저 종료·탭 닫기·네트워크 끊김) 즉시 정리
+      .on("presence", { event: "leave" }, ({ key }) => {
+        // 같은 사람이 다른 탭/기기로 아직 접속 중이면 제거하지 않음
+        if (presence.presenceState()[key]) return;
+        removeOffline();
+      })
+      // 입장 시 이전에 비정상 종료로 남은 유령 플레이어도 정리
+      .on("presence", { event: "sync" }, removeOffline)
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presence.track({ id: playerId, name: playerName, idx: playerIdx });
+        }
+      });
+
+    return () => { supabase.removeChannel(presence); };
+  }, [roomId, playerId, playerName, playerIdx, applyRemote]);
+
+  // 새 메시지가 오면 채팅창을 맨 아래로 스크롤
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const sendChat = useCallback(() => {
+    const text = chatInput.trim();
+    if (!text) return;
+    const msg = {
+      id: `${playerId}-${Date.now()}`,
+      playerId,
+      name: playerName,
+      idx: playerIdx,
+      text,
+      ts: Date.now(),
+    };
+    setMessages(prev => [...prev, msg]);           // 내 메시지는 즉시 화면에 표시
+    setChatInput("");
+    chatChannelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
+  }, [chatInput, playerId, playerName, playerIdx]);
 
   // 게임 상태 전환 시 징글 (로컬·원격 모두 반영)
   const prevStateRef = useRef("playing");
@@ -877,15 +965,95 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
         </div>
       )}
 
-      {/* My info badge */}
-      <div style={{
-        marginTop: 8,
-        background: `${myColor}22`,
-        border: `1px solid ${myColor}66`,
-        borderRadius: 12, padding: "5px 14px",
-        color: myColor, fontSize: 12, fontWeight: 700,
-      }}>
-        {PLAYER_EMOJIS[playerIdx % PLAYER_EMOJIS.length]} {playerName} (나)
+      {/* Chat */}
+      <div style={{ width: "100%", maxWidth: 420, marginTop: 8 }}>
+        <div
+          ref={chatScrollRef}
+          className="chat-scroll"
+          style={{
+            height: 96, // 약 4줄
+            overflowY: "auto",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 14,
+            padding: "8px 10px",
+            display: "flex", flexDirection: "column", gap: 6,
+            backdropFilter: "blur(10px)",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          {messages.length === 0 ? (
+            <div style={{
+              margin: "auto", color: "rgba(255,255,255,0.35)", fontSize: 12,
+            }}>
+              💬 함께 플레이하는 친구들과 대화해보세요
+            </div>
+          ) : (
+            messages.map((m) => {
+              const mine = m.playerId === playerId;
+              const color = PLAYER_COLORS[m.idx % PLAYER_COLORS.length];
+              return (
+                <div key={m.id} style={{
+                  display: "flex",
+                  justifyContent: mine ? "flex-end" : "flex-start",
+                }}>
+                  <div style={{
+                    maxWidth: "78%",
+                    background: mine ? `${color}cc` : "rgba(255,255,255,0.14)",
+                    color: "white",
+                    borderRadius: 12,
+                    borderTopRightRadius: mine ? 3 : 12,
+                    borderTopLeftRadius: mine ? 12 : 3,
+                    padding: "5px 10px",
+                    fontSize: 12, lineHeight: 1.35,
+                    textAlign: "left",
+                    wordBreak: "break-word",
+                    whiteSpace: "pre-wrap",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+                  }}>
+                    {!mine && (
+                      <span style={{ color, fontWeight: 800, marginRight: 4 }}>
+                        {m.name}:
+                      </span>
+                    )}
+                    {m.text}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendChat(); }}
+            placeholder="메시지 입력..."
+            maxLength={200}
+            style={{
+              flex: 1, minWidth: 0,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 12, padding: "10px 14px",
+              color: "white", fontSize: 14, outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <button
+            onClick={sendChat}
+            style={{
+              flexShrink: 0,
+              background: `linear-gradient(135deg, ${myColor}, ${myColor}aa)`,
+              color: "white", border: "none",
+              borderRadius: 12, padding: "0 18px",
+              fontSize: 14, fontWeight: 800, cursor: "pointer",
+              boxShadow: `0 4px 14px ${myColor}55`,
+            }}
+          >
+            전송
+          </button>
+        </div>
       </div>
 
       {/* Overlay */}
@@ -1054,4 +1222,21 @@ const globalStyle = `
   .cell-btn:hover { transform: scale(1.12); filter: brightness(1.2); }
   .cell-btn:active { transform: scale(0.9); }
   input::placeholder { color: rgba(255,255,255,0.3); }
+
+  /* 채팅창 스크롤바 — 게임 테마(핑크→골드) */
+  .chat-scroll { scrollbar-width: thin; scrollbar-color: #FF6B9D rgba(255,255,255,0.06); }
+  .chat-scroll::-webkit-scrollbar { width: 8px; }
+  .chat-scroll::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    margin: 4px 0;
+  }
+  .chat-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #FF6B9D, #FECA57);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .chat-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #FF85B0, #FFD66E);
+  }
 `;
