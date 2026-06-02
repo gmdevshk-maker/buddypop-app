@@ -24,6 +24,10 @@ const COLOR_EMOJIS = ["🌸", "🍊", "⭐", "💎", "❤️", "🔮"];
 const PLAYER_COLORS = ["#FF6B9D", "#48DBFB", "#FECA57", "#A29BFE", "#FF9F43", "#FF6B6B"];
 const PLAYER_EMOJIS = ["🐰", "🐱", "🐸", "🦊", "🐼", "🐨"];
 
+// 플레이어 인덱스 → 테마 색/이모지 (배열을 순환 참조)
+const playerColor = (idx) => PLAYER_COLORS[idx % PLAYER_COLORS.length];
+const playerEmoji = (idx) => PLAYER_EMOJIS[idx % PLAYER_EMOJIS.length];
+
 const LEVEL_CONFIG = [
   { target: 2000,  moves: 20, label: "Level 1" },
   { target: 4000,  moves: 20, label: "Level 2" },
@@ -201,15 +205,9 @@ function StagePickerModal({ stages, onChange, onStart, onCancel }) {
   const inc = () => { sfx.click(); onChange(Math.min(5, stages + 1)); };
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 300,
-      background: "rgba(0,0,0,0.8)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      backdropFilter: "blur(8px)",
-    }}>
+    <div style={{ ...modalBackdrop, zIndex: 300 }}>
       <div style={{
-        background: "linear-gradient(135deg, #2d1052, #0d2060)",
-        border: "2px solid rgba(255,255,255,0.2)",
+        ...modalCard,
         borderRadius: 24, padding: "32px 28px",
         textAlign: "center", width: "min(320px, 90vw)",
         boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
@@ -398,6 +396,244 @@ function Lobby({ onCreate, onJoin }) {
         <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center" }}>
           스마트폰으로 스캔하여 플레이
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── 방 코드 바 ────────────────────────────────────────────
+function RoomCodeBar({ roomId, copied, onCopy, label, level, stageTotal }) {
+  return (
+    <div style={{ ...sectionRow, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>방 코드</span>
+        <button onClick={onCopy} style={{
+          background: "rgba(255,255,255,0.1)",
+          border: "1px solid rgba(255,255,255,0.2)",
+          color: "#FECA57", fontWeight: 900, fontSize: 14,
+          padding: "3px 10px", borderRadius: 8, cursor: "pointer",
+          letterSpacing: 3,
+        }}>
+          {roomId}
+        </button>
+        {copied && <span style={{ color: "#48DBFB", fontSize: 11 }}>✓ 복사됨</span>}
+      </div>
+      <div style={{ color: "#FECA57", fontSize: 12, fontWeight: 700 }}>
+        {label} · {level + 1}/{stageTotal}
+      </div>
+    </div>
+  );
+}
+
+// ── 플레이어 배지 목록 ────────────────────────────────────
+function PlayerBadges({ players, playerId }) {
+  return (
+    <div style={{ ...sectionRow, display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {(players || []).map((p) => {
+        const mine = p.id === playerId;
+        const color = playerColor(p.idx);
+        return (
+          <div key={p.id} style={{
+            background: mine ? `${color}33` : "rgba(255,255,255,0.06)",
+            border: `1px solid ${mine ? color : "rgba(255,255,255,0.1)"}`,
+            borderRadius: 10, padding: "4px 10px",
+            display: "flex", alignItems: "center", gap: 5,
+          }}>
+            <span style={{ fontSize: 14 }}>{playerEmoji(p.idx)}</span>
+            <span style={{ color: "white", fontSize: 11, fontWeight: 600 }}>{p.name}</span>
+            <span style={{ color, fontSize: 11, fontWeight: 700 }}>
+              +{(p.score || 0).toLocaleString()}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── 점수 패널 ─────────────────────────────────────────────
+function ScorePanel({ score, target, moves, progress }) {
+  const lowMoves = (moves || 0) <= 3;
+  return (
+    <div style={{
+      ...sectionRow,
+      background: "rgba(255,255,255,0.08)",
+      borderRadius: 16, padding: "10px 16px",
+      backdropFilter: "blur(10px)",
+      border: "1px solid rgba(255,255,255,0.12)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <div>
+          <div style={statLabel}>TEAM SCORE</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#FECA57", lineHeight: 1 }}>
+            {(score || 0).toLocaleString()}
+          </div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={statLabel}>TARGET</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#48DBFB" }}>
+            {target.toLocaleString()}
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={statLabel}>MOVES</div>
+          <div style={{
+            fontSize: 26, fontWeight: 900, lineHeight: 1,
+            color: lowMoves ? "#FF6B6B" : "#A29BFE",
+            animation: lowMoves ? "pulse 0.8s infinite" : "none",
+          }}>{moves || 0}</div>
+        </div>
+      </div>
+      <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, height: 7, overflow: "hidden" }}>
+        <div style={{
+          height: "100%", borderRadius: 8, width: `${progress}%`,
+          background: "linear-gradient(90deg, #FF6B9D, #FECA57)",
+          transition: "width 0.4s ease", boxShadow: "0 0 10px #FF6B9D",
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ── 채팅 패널 ─────────────────────────────────────────────
+function ChatPanel({ messages, playerId, chatInput, setChatInput, sendChat, scrollRef, myColor }) {
+  return (
+    <div style={{ ...sectionRow, marginBottom: 0, marginTop: 8 }}>
+      <div
+        ref={scrollRef}
+        className="chat-scroll"
+        style={{
+          height: 96, // 약 4줄
+          overflowY: "auto",
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 14,
+          padding: "8px 10px",
+          display: "flex", flexDirection: "column", gap: 6,
+          backdropFilter: "blur(10px)",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {messages.length === 0 ? (
+          <div style={{
+            margin: "auto", color: "rgba(255,255,255,0.35)", fontSize: 12,
+          }}>
+            💬 함께 플레이하는 친구들과 대화해보세요
+          </div>
+        ) : (
+          messages.map((m) => {
+            const mine = m.playerId === playerId;
+            const color = playerColor(m.idx);
+            return (
+              <div key={m.id} style={{
+                display: "flex",
+                justifyContent: mine ? "flex-end" : "flex-start",
+              }}>
+                <div style={{
+                  maxWidth: "78%",
+                  background: mine ? `${color}cc` : "rgba(255,255,255,0.14)",
+                  color: "white",
+                  borderRadius: 12,
+                  borderTopRightRadius: mine ? 3 : 12,
+                  borderTopLeftRadius: mine ? 12 : 3,
+                  padding: "5px 10px",
+                  fontSize: 12, lineHeight: 1.35,
+                  textAlign: "left",
+                  wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+                }}>
+                  {!mine && (
+                    <span style={{ color, fontWeight: 800, marginRight: 4 }}>
+                      {m.name}:
+                    </span>
+                  )}
+                  {m.text}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        <input
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendChat(); }}
+          placeholder="메시지 입력..."
+          maxLength={200}
+          style={{
+            flex: 1, minWidth: 0,
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: 12, padding: "10px 14px",
+            color: "white", fontSize: 14, outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+        <button
+          onClick={sendChat}
+          style={{
+            flexShrink: 0,
+            background: `linear-gradient(135deg, ${myColor}, ${myColor}aa)`,
+            color: "white", border: "none",
+            borderRadius: 12, padding: "0 18px",
+            fontSize: 14, fontWeight: 800, cursor: "pointer",
+            boxShadow: `0 4px 14px ${myColor}55`,
+          }}
+        >
+          전송
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── 게임 종료/레벨업 오버레이 ─────────────────────────────
+function ResultOverlay({ gameState, score, cfg, winner, playerName, onNext, onRestart }) {
+  return (
+    <div style={{ ...modalBackdrop, zIndex: 200 }}>
+      <div style={{
+        ...modalCard,
+        borderRadius: 28, padding: "36px 44px",
+        textAlign: "center", maxWidth: 320,
+        animation: "levelUp 0.5s forwards",
+      }}>
+        {gameState === "levelup" && (
+          <>
+            <div style={{ fontSize: 56 }}>🎉</div>
+            <div style={{ color: "#FECA57", fontSize: 28, fontWeight: 900, marginBottom: 6 }}>LEVEL UP!</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginBottom: 20 }}>
+              팀 점수 {(score||0).toLocaleString()} 달성!
+            </div>
+            <button onClick={() => { sfx.click(); onNext(); }} style={btnStyle("#FF6B9D")}>
+              NEXT LEVEL →
+            </button>
+          </>
+        )}
+        {gameState === "win" && (
+          <>
+            <div style={{ fontSize: 56 }}>🏆</div>
+            <div style={{ color: "#FECA57", fontSize: 28, fontWeight: 900, marginBottom: 6 }}>
+              &quot;{winner?.name || playerName}&quot; 승리!
+            </div>
+            <div style={{ color: "white", fontSize: 18, marginBottom: 16 }}>
+              {(winner?.score || 0).toLocaleString()} pts
+            </div>
+            <button onClick={() => { sfx.click(); onRestart(); }} style={btnStyle("#48DBFB")}>다시 플레이</button>
+          </>
+        )}
+        {gameState === "gameover" && (
+          <>
+            <div style={{ fontSize: 56 }}>😢</div>
+            <div style={{ color: "#FF6B6B", fontSize: 28, fontWeight: 900, marginBottom: 6 }}>GAME OVER</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 20 }}>
+              목표 {cfg.target.toLocaleString()} pts 미달
+            </div>
+            <button onClick={() => { sfx.click(); onRestart(); }} style={btnStyle("#FF6B9D")}>다시 도전</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -764,7 +1000,7 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
   const cfg = LEVEL_CONFIG[level] || LEVEL_CONFIG[LEVEL_CONFIG.length - 1];
   const stageTotal = maxLevels ?? LEVEL_CONFIG.length;
   const progress = Math.min((score / cfg.target) * 100, 100);
-  const myColor = PLAYER_COLORS[playerIdx % PLAYER_COLORS.length];
+  const myColor = playerColor(playerIdx);
   const winner = (players || []).reduce((best, p) => {
     if (!best || (p.score || 0) > (best.score || 0)) return p;
     return best;
@@ -773,7 +1009,7 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #1a0533 0%, #2d1052 40%, #0d2060 100%)",
+      background: SCREEN_BG,
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "flex-start",
       fontFamily: "'Segoe UI', sans-serif",
@@ -783,91 +1019,18 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
       <style>{globalStyle}</style>
       <MuteButton />
 
-      {/* Room code bar */}
-      <div style={{
-        width: "100%", maxWidth: 420,
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: 8,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>방 코드</span>
-          <button onClick={copyRoomCode} style={{
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.2)",
-            color: "#FECA57", fontWeight: 900, fontSize: 14,
-            padding: "3px 10px", borderRadius: 8, cursor: "pointer",
-            letterSpacing: 3,
-          }}>
-            {roomId}
-          </button>
-          {copied && <span style={{ color: "#48DBFB", fontSize: 11 }}>✓ 복사됨</span>}
-        </div>
-        <div style={{ color: "#FECA57", fontSize: 12, fontWeight: 700 }}>
-          {cfg.label} · {level + 1}/{stageTotal}
-        </div>
-      </div>
+      <RoomCodeBar
+        roomId={roomId}
+        copied={copied}
+        onCopy={copyRoomCode}
+        label={cfg.label}
+        level={level}
+        stageTotal={stageTotal}
+      />
 
-      {/* Players */}
-      <div style={{
-        width: "100%", maxWidth: 420,
-        display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap",
-      }}>
-        {(players || []).map((p) => (
-          <div key={p.id} style={{
-            background: p.id === playerId
-              ? `${PLAYER_COLORS[p.idx % PLAYER_COLORS.length]}33`
-              : "rgba(255,255,255,0.06)",
-            border: `1px solid ${p.id === playerId ? PLAYER_COLORS[p.idx % PLAYER_COLORS.length] : "rgba(255,255,255,0.1)"}`,
-            borderRadius: 10, padding: "4px 10px",
-            display: "flex", alignItems: "center", gap: 5,
-          }}>
-            <span style={{ fontSize: 14 }}>{PLAYER_EMOJIS[p.idx % PLAYER_EMOJIS.length]}</span>
-            <span style={{ color: "white", fontSize: 11, fontWeight: 600 }}>{p.name}</span>
-            <span style={{ color: PLAYER_COLORS[p.idx % PLAYER_COLORS.length], fontSize: 11, fontWeight: 700 }}>
-              +{(p.score || 0).toLocaleString()}
-            </span>
-          </div>
-        ))}
-      </div>
+      <PlayerBadges players={players} playerId={playerId} />
 
-      {/* Score panel */}
-      <div style={{
-        width: "100%", maxWidth: 420,
-        background: "rgba(255,255,255,0.08)",
-        borderRadius: 16, padding: "10px 16px", marginBottom: 8,
-        backdropFilter: "blur(10px)",
-        border: "1px solid rgba(255,255,255,0.12)",
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>TEAM SCORE</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#FECA57", lineHeight: 1 }}>
-              {(score || 0).toLocaleString()}
-            </div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>TARGET</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#48DBFB" }}>
-              {cfg.target.toLocaleString()}
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>MOVES</div>
-            <div style={{
-              fontSize: 26, fontWeight: 900, lineHeight: 1,
-              color: (moves || 0) <= 3 ? "#FF6B6B" : "#A29BFE",
-              animation: (moves || 0) <= 3 ? "pulse 0.8s infinite" : "none",
-            }}>{moves || 0}</div>
-          </div>
-        </div>
-        <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, height: 7, overflow: "hidden" }}>
-          <div style={{
-            height: "100%", borderRadius: 8, width: `${progress}%`,
-            background: "linear-gradient(90deg, #FF6B9D, #FECA57)",
-            transition: "width 0.4s ease", boxShadow: "0 0 10px #FF6B9D",
-          }} />
-        </div>
-      </div>
+      <ScorePanel score={score} target={cfg.target} moves={moves} progress={progress} />
 
       {/* Combo */}
       {(combo || 0) >= 2 && (
@@ -965,148 +1128,27 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
         </div>
       )}
 
-      {/* Chat */}
-      <div style={{ width: "100%", maxWidth: 420, marginTop: 8 }}>
-        <div
-          ref={chatScrollRef}
-          className="chat-scroll"
-          style={{
-            height: 96, // 약 4줄
-            overflowY: "auto",
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 14,
-            padding: "8px 10px",
-            display: "flex", flexDirection: "column", gap: 6,
-            backdropFilter: "blur(10px)",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {messages.length === 0 ? (
-            <div style={{
-              margin: "auto", color: "rgba(255,255,255,0.35)", fontSize: 12,
-            }}>
-              💬 함께 플레이하는 친구들과 대화해보세요
-            </div>
-          ) : (
-            messages.map((m) => {
-              const mine = m.playerId === playerId;
-              const color = PLAYER_COLORS[m.idx % PLAYER_COLORS.length];
-              return (
-                <div key={m.id} style={{
-                  display: "flex",
-                  justifyContent: mine ? "flex-end" : "flex-start",
-                }}>
-                  <div style={{
-                    maxWidth: "78%",
-                    background: mine ? `${color}cc` : "rgba(255,255,255,0.14)",
-                    color: "white",
-                    borderRadius: 12,
-                    borderTopRightRadius: mine ? 3 : 12,
-                    borderTopLeftRadius: mine ? 12 : 3,
-                    padding: "5px 10px",
-                    fontSize: 12, lineHeight: 1.35,
-                    textAlign: "left",
-                    wordBreak: "break-word",
-                    whiteSpace: "pre-wrap",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-                  }}>
-                    {!mine && (
-                      <span style={{ color, fontWeight: 800, marginRight: 4 }}>
-                        {m.name}:
-                      </span>
-                    )}
-                    {m.text}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendChat(); }}
-            placeholder="메시지 입력..."
-            maxLength={200}
-            style={{
-              flex: 1, minWidth: 0,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: 12, padding: "10px 14px",
-              color: "white", fontSize: 14, outline: "none",
-              boxSizing: "border-box",
-            }}
-          />
-          <button
-            onClick={sendChat}
-            style={{
-              flexShrink: 0,
-              background: `linear-gradient(135deg, ${myColor}, ${myColor}aa)`,
-              color: "white", border: "none",
-              borderRadius: 12, padding: "0 18px",
-              fontSize: 14, fontWeight: 800, cursor: "pointer",
-              boxShadow: `0 4px 14px ${myColor}55`,
-            }}
-          >
-            전송
-          </button>
-        </div>
-      </div>
+      <ChatPanel
+        messages={messages}
+        playerId={playerId}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        sendChat={sendChat}
+        scrollRef={chatScrollRef}
+        myColor={myColor}
+      />
 
       {/* Overlay */}
       {game_state !== "playing" && (
-        <div style={{
-          position: "fixed", inset: 0,
-          background: "rgba(0,0,0,0.8)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 200, backdropFilter: "blur(8px)",
-        }}>
-          <div style={{
-            background: "linear-gradient(135deg, #2d1052, #0d2060)",
-            border: "2px solid rgba(255,255,255,0.2)",
-            borderRadius: 28, padding: "36px 44px",
-            textAlign: "center", maxWidth: 320,
-            animation: "levelUp 0.5s forwards",
-          }}>
-            {game_state === "levelup" && (
-              <>
-                <div style={{ fontSize: 56 }}>🎉</div>
-                <div style={{ color: "#FECA57", fontSize: 28, fontWeight: 900, marginBottom: 6 }}>LEVEL UP!</div>
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginBottom: 20 }}>
-                  팀 점수 {(score||0).toLocaleString()} 달성!
-                </div>
-                <button onClick={() => { sfx.click(); handleNextLevel(); }} style={btnStyle("#FF6B9D")}>
-                  NEXT LEVEL →
-                </button>
-              </>
-            )}
-            {game_state === "win" && (
-              <>
-                <div style={{ fontSize: 56 }}>🏆</div>
-                <div style={{ color: "#FECA57", fontSize: 28, fontWeight: 900, marginBottom: 6 }}>
-                  &quot;{winner?.name || playerName}&quot; 승리!
-                </div>
-                <div style={{ color: "white", fontSize: 18, marginBottom: 16 }}>
-                  {(winner?.score || 0).toLocaleString()} pts
-                </div>
-                <button onClick={() => { sfx.click(); handleRestart(); }} style={btnStyle("#48DBFB")}>다시 플레이</button>
-              </>
-            )}
-            {game_state === "gameover" && (
-              <>
-                <div style={{ fontSize: 56 }}>😢</div>
-                <div style={{ color: "#FF6B6B", fontSize: 28, fontWeight: 900, marginBottom: 6 }}>GAME OVER</div>
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 20 }}>
-                  목표 {cfg.target.toLocaleString()} pts 미달
-                </div>
-                <button onClick={() => { sfx.click(); handleRestart(); }} style={btnStyle("#FF6B9D")}>다시 도전</button>
-              </>
-            )}
-          </div>
-        </div>
+        <ResultOverlay
+          gameState={game_state}
+          score={score}
+          cfg={cfg}
+          winner={winner}
+          playerName={playerName}
+          onNext={handleNextLevel}
+          onRestart={handleRestart}
+        />
       )}
     </div>
   );
@@ -1158,11 +1200,34 @@ export default function App() {
 }
 
 // ── Shared styles ─────────────────────────────────────────
+const SCREEN_BG = "linear-gradient(135deg, #1a0533 0%, #2d1052 40%, #0d2060 100%)";
+
+// 화면 중앙 정렬 래퍼 (로비·로딩·에러 화면 공용)
 const lobbyWrap = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #1a0533 0%, #2d1052 40%, #0d2060 100%)",
+  background: SCREEN_BG,
   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
   fontFamily: "'Segoe UI', sans-serif", padding: "24px 16px",
+};
+
+// 게임 화면의 가로 폭이 고정된 섹션(방 코드·플레이어·점수·채팅) 공통 폭
+const sectionRow = { width: "100%", maxWidth: 420, marginBottom: 8 };
+
+// 점수 패널 안의 작은 라벨 (TEAM SCORE / TARGET / MOVES)
+const statLabel = { fontSize: 10, color: "rgba(255,255,255,0.5)" };
+
+// 모달 배경 딤 + 블러 (단계 선택·결과 오버레이 공용)
+const modalBackdrop = {
+  position: "fixed", inset: 0,
+  background: "rgba(0,0,0,0.8)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  backdropFilter: "blur(8px)",
+};
+
+// 모달 카드 기본 외형 (배경 그라데이션 + 테두리)
+const modalCard = {
+  background: "linear-gradient(135deg, #2d1052, #0d2060)",
+  border: "2px solid rgba(255,255,255,0.2)",
 };
 
 const inputStyle = {
