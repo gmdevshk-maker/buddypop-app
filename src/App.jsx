@@ -815,7 +815,7 @@ function Game({ roomId, playerId, playerName, playerIdx, maxLevels: maxLevelsPro
     presence
       // 누군가 떠나면(브라우저 종료·탭 닫기·네트워크 끊김) 즉시 정리
       .on("presence", { event: "leave" }, ({ key }) => {
-        // 같은 사람이 다른 탭/기기로 아직 접속 중이면 제거하지 않음
+        // 같은 playerId(key)가 재연결 등으로 아직 살아있으면(중복 ref) 오프라인 오인 제거 방지
         if (presence.presenceState()[key]) return;
         removeOffline();
       })
